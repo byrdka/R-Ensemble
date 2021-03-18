@@ -1,0 +1,189 @@
+---
+title: "Ensemble Project 2"
+author: "Kevin Byrd"
+date: "3/14/2021"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#install.packages("mlbench")
+library(mlbench)
+data("BreastCancer")
+#View(BreastCancer)
+```
+
+
+```{r}
+BreastCancer <- na.omit(BreastCancer)
+BreastCancer$Id <- NULL
+```
+
+```{r}
+set.seed(2)
+ind <- sample(2, nrow(BreastCancer), replace = TRUE, prob=c(0.8, 0.2))
+#View(BreastCancer[ind == 1,])# train
+#View(BreastCancer[ind == 2,])# test
+```
+
+```{r}
+library(e1071)
+mysvm <- svm(Class ~ ., BreastCancer[ind == 1,])
+mysvm.pred <- predict(mysvm, BreastCancer[ind == 2,])
+table(mysvm.pred,BreastCancer[ind == 2,]$Class)
+#mysvm.pred  benign malignant
+ # benign        87         1
+  #malignant      5        55
+```
+
+
+```{r, warning=FALSE, message=FALSE}
+#install.packages("klaR")
+
+library(klaR)
+mynb <- NaiveBayes(Class ~ ., BreastCancer[ind == 1,])
+mynb.pred <- predict(mynb,BreastCancer[ind == 2,])
+table(mynb.pred$class,BreastCancer[ind == 2,]$Class)
+         # benign malignant
+  #benign        87         0
+  #malignant      5        56
+```
+
+
+```{r}
+library(nnet)
+mynnet <- nnet(Class ~ ., BreastCancer[ind == 1,], size=1)
+mynnet.pred <- predict(mynnet,BreastCancer[ind == 2,],type="class")
+table(mynnet.pred,BreastCancer[ind == 2,]$Class)
+
+#mynnet.pred benign malignant
+ # benign        85         1
+  #malignant      7        55
+```
+
+```{r}
+#Decision trees
+library(rpart)
+mytree <- rpart(Class ~ ., BreastCancer[ind == 1,])
+
+plot(mytree); text(mytree) 
+
+mytree.pred <- predict(mytree,BreastCancer[ind == 2,],type="class")
+table(mytree.pred,BreastCancer[ind == 2,]$Class)
+
+#mytree.pred benign malignant
+ # benign        86         2
+  #malignant      6        54
+```
+
+
+
+
+
+
+
+```{r}
+#Regularised Discriminant Analysis
+library(klaR)
+myrda <- rda(Class ~ ., BreastCancer[ind == 1,])
+myrda.pred <- predict(myrda, BreastCancer[ind == 2,])
+table(myrda.pred$class,BreastCancer[ind == 2,]$Class)
+       #   benign malignant
+ # benign        86         0
+  #malignant      6        56
+```
+
+
+```{r}
+#Random Forests
+library(randomForest)
+myrf <- randomForest(Class ~ .,BreastCancer[ind == 1,])
+myrf.pred <- predict(myrf, BreastCancer[ind == 2,])
+table(myrf.pred, BreastCancer[ind == 2,]$Class)
+#myrf.pred   benign malignant
+ # benign        87         0
+#  malignant      5        56
+```
+
+```{r}
+#convert the data to binary 0 and 1. 0 = benign and 1 = malignant
+myrda.pred2 <- data.frame(myrda.pred$class)
+myrda.pred2 <-ifelse(myrda.pred2=="malignant",1,0)
+
+myrf.pred2 <- data.frame(myrf.pred)
+myrf.pred2 <-ifelse(myrf.pred2=="malignant",1,0)
+
+mytree.pred2 <-data.frame(mytree.pred)
+mytree.pred2 <-ifelse(mytree.pred2=="malignant",1,0)
+
+mynnet.pred2 <-data.frame(mynnet.pred)
+mynnet.pred2 <-ifelse(mynnet.pred2=="malignant",1,0)
+
+mynb.pred2 <-data.frame(mynb.pred$class)
+mynb.pred2 <-ifelse(mynb.pred2=="malignant",1,0)
+
+mysvm.pred2 <-data.frame(mysvm.pred)
+mysvm.pred2 <-ifelse(mysvm.pred2=="malignant",1,0)
+
+```
+
+```{r}
+#Ensemble by taking the row sums to calculate the average of the classification model results to determine if collectively it is either benign or malignant.
+ensemble.df <- data.frame(cbind(myrda.pred2, myrf.pred2, mytree.pred2, mynnet.pred2, mynb.pred2, mysvm.pred2))
+
+```
+
+
+```{r}
+#Get rowSums
+row.sum <- rowSums(ensemble.df, na.rm = FALSE, dims = 1)
+row.sum <-data.frame(row.sum)
+
+#View(row.sum)
+```
+
+```{r}
+#If greater than 3.5 the cancer is determined to be malignant. If the results are below 3.5 the cancer is considered to be benign.
+majority2<- ifelse(row.sum >3.5, "malignant", "benign")
+majority2<-data.frame(majority2)
+
+
+```
+
+```{r}
+#Create and merge dataframes
+ensemble.df1<-data.frame(cbind(ensemble.df, row.sum, majority2))
+View(ensemble.df1)
+#test ensemble for validation data
+table(ensemble.df1$row.sum,BreastCancer[ind == 2,]$Class)
+
+```
+```{r}
+plot(ensemble.df1)
+```
+
+
+A different way to solve
+
+
+```{r}
+#Try a different way to find ensemble
+#Ensemble Method using diceR package majority voting function.
+#install.packages("diceR")
+library(diceR)
+resultstable2 <-table(majority_voting(ensemble.df, is.relabelled = FALSE))
+resultstable2  
+
+# Results
+# Benign  Malignant
+#    0        1 
+#   86       62 
+
+plot(resultstable2, main = "Benign & Malignant Cancer")
+```
+
+
+
